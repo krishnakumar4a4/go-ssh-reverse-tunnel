@@ -33,7 +33,7 @@ require (
 	github.com/russross/blackfriday v2.0.0+incompatible // indirect
 	github.com/sirupsen/logrus v1.4.2 // indirect
 	github.com/spf13/afero v1.2.2 // indirect
-	github.com/spf13/cobra v0.0.5 // indirect
+	github.com/spf13/cobra v0.0.5
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/viper v1.4.0 // indirect
 	github.com/stretchr/objx v0.2.0 // indirect
@@ -45,6 +45,7 @@ require (
 	golang.org/x/image v0.0.0-20190802002840-cff245a6509b // indirect
 	golang.org/x/mobile v0.0.0-20190719004257-d2bd2a29d028 // indirect
 	golang.org/x/net v0.0.0-20190724013045-ca1201d0de80 // indirect
+	golang.org/x/sys v0.0.0-20190804053845-51ab0e2deafa // indirect
 	golang.org/x/tools v0.0.0-20190802220118-1d1727260058 // indirect
 	google.golang.org/genproto v0.0.0-20190801165951-fa694d86fc64 // indirect
 	google.golang.org/grpc v1.22.1 // indirect
