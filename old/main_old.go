@@ -1,14 +1,14 @@
 package main
 
 import (
-	"encoding/hex"
+	// "encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net"
 	"strings"
-	"time"
+	// "time"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -78,6 +78,7 @@ func main() {
 	}
 
 	go transfer(targetConn, tcpConn)
+	go transfer(tcpConn, targetConn)
 	// BUFSIZE := 1024
 	// for {
 	// 	for {

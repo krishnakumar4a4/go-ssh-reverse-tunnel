@@ -1,17 +1,16 @@
-package main
+package http
 
 import (
-	"crypto/tls"
 	"fmt"
 	"net/http"
 	"net/url"
 	"time"
 )
 
-const timeout time.Duration = 1000*10
+const timeout time.Duration = 1000*100
 
 func main() {
-	server := "google.co.in"
+	// server := "google.co.in"
 	//port := 443
 	proxy := "http://localhost:2345"
 	//proxy := ""
@@ -38,10 +37,11 @@ func main() {
 	// Now we've proper client, with or without proxy
 
 	//resp, err := client.Get(fmt.Sprintf("https://%v:%v", server,port))
-	resp, err := client.Get(fmt.Sprintf("https://%v:443", server))
+	resp, err := client.Get(fmt.Sprintf("https://gaana.com/playlist/gaana-dj-telugu-latest-hits-1"))
 	if err != nil {
 		panic("failed to connect: " + err.Error())
 	}
 
 	fmt.Printf("Time to expiry for the certificate: %v\n", resp.TLS.PeerCertificates[0].NotAfter.Sub(time.Now()))
+	fmt.Println("response", resp)
 }
