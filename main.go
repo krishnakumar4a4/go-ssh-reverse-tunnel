@@ -13,6 +13,7 @@ import (
 	"time"
 	"runtime"
 	"github.com/spf13/cobra"
+	"encoding/json"
 )
 
 var rootCmd *cobra.Command
@@ -20,6 +21,20 @@ var uname string
 var keyPath string
 var targetIp string
 var tunnelPort int
+var proxyIp string
+var proxyPort int
+
+type Conf struct {
+	Username string `json:username`
+	Keypath string `json:keypath`
+	Targetip string `json:targetip`
+	Tunnelport int `json:targetport`
+	Proxyip string `json:proxyip`
+	Proxyport int `json:proxyport`
+	Alloweddomains []string `json:alloweddomains`
+}
+
+var conf Conf
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
@@ -41,6 +56,10 @@ func init() {
 	rootCmd.Flags().StringVarP(&keyPath, "keypath","i","","Private key path for key based SSH")
 	rootCmd.Flags().StringVarP(&targetIp, "target","t","","Target IP for SSH")
 	rootCmd.Flags().IntVarP(&tunnelPort, "port","p",3129,"Tunneled listening port on remote server")
+
+	rootCmd.Flags().StringVarP(&proxyIp, "proxy-ip","","","Proxy ip address to be used")
+	rootCmd.Flags().IntVarP(&proxyPort, "proxy-port","",3128,"Proxy port to be used")
+
 	rootCmd.MarkFlagRequired("user")
 	rootCmd.MarkFlagRequired("keypath")
 	rootCmd.MarkFlagRequired("target")
@@ -48,6 +67,10 @@ func init() {
 }
 
 func start(uname, pKeyPath, sshTargetIP string, targetPort int) {
+	if err := readConf();err != nil {
+		fmt.Println("Error while reading conf, ", err)
+	}
+
 	key, err := ioutil.ReadFile(pKeyPath)
 	if err != nil {
 		log.Fatalf("unable to read private key: %v", err)
@@ -98,12 +121,41 @@ func start(uname, pKeyPath, sshTargetIP string, targetPort int) {
 	
 		go func() {
 			waitChan := make(chan int)
-			url := parseConnect(tcpConn)
+			url, connectBytes := parseConnect(tcpConn)
 			fmt.Println("url: ", url)
+			urlParts := strings.Split(url, ":")
+			domainName := urlParts[0]
+			var isAllowedDomain bool
+			for _, dName := range conf.Alloweddomains {
+				if dName == domainName {
+					isAllowedDomain = true
+					break
+				}
+			}
+
+			if !isAllowedDomain {
+				fmt.Println(fmt.Sprintf("This domain %v is blocked", domainName))
+				return
+			}
 		
+			var isProxyEnabled bool
+			if proxyIp != "" || proxyPort != 0 {
+				isProxyEnabled = true				
+			}
+			if isProxyEnabled {
+				url = fmt.Sprintf("%v:%v",proxyIp, proxyPort)
+				fmt.Println("connected to proxy url:", url)
+			}
 			targetConn, err := net.Dial("tcp", url)
 			if err != nil {
 				fmt.Println("Unable to connect to target host: ", url)
+				return
+			}
+			if isProxyEnabled {
+				targetConn.Write(connectBytes)
+				BUFSIZE := 1024 * 5
+				targetConnBuf := make([]byte, BUFSIZE)
+				targetConn.Read(targetConnBuf)
 			}
 			proxy(tcpConn, targetConn, waitChan)
 			<- waitChan
@@ -111,6 +163,37 @@ func start(uname, pKeyPath, sshTargetIP string, targetPort int) {
 			fmt.Println("Number of go routines running after connection", runtime.NumGoroutine()-1)
 		}()
 	}
+}
+
+func readConf() error {
+	data, err := ioutil.ReadFile("conf.json")
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(data, &conf)
+	if err != nil {
+		return err
+	}
+	fmt.Println("conf read", conf)
+	if uname == "" {
+		uname = conf.Username
+	}
+	if keyPath == "" {
+		keyPath = conf.Keypath
+	}
+	if targetIp == "" {
+		targetIp = conf.Targetip
+	}
+	if tunnelPort == 0 {
+		tunnelPort = conf.Tunnelport
+	}
+	if proxyIp == "" {
+		proxyIp = conf.Proxyip
+	}
+	if proxyPort == 0 {
+		proxyPort = conf.Proxyport
+	}
+	return nil
 }
 
 func proxy(tcpConn, targetConn net.Conn, waitChan chan int) {
@@ -206,7 +289,7 @@ func resetCRLF(cr1, cr2, lf1, lf2 *bool) {
 	*lf2 = false
 }
 
-func parseConnect(tcpConn io.ReadWriter) string {
+func parseConnect(tcpConn io.ReadWriter) (string, []byte) {
 	cr1 := false
 	cr2 := false
 	lf1 := false
@@ -257,5 +340,5 @@ func parseConnect(tcpConn io.ReadWriter) string {
 	totReqString := string(totReqBytes)
 	lines := strings.Split(totReqString, "\n")
 	urls := strings.Split(lines[0], " ")
-	return urls[1]
+	return urls[1], totReqBytes
 }
