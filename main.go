@@ -23,6 +23,13 @@ var targetIp string
 var tunnelPort int
 var proxyIp string
 var proxyPort int
+var noProxy bool
+
+var totUploadBytes int64
+var totUploadDuration int64
+
+var totDownloadBytes int64
+var totDownloadDuration int64
 
 type Conf struct {
 	Username string `json:username`
@@ -59,6 +66,7 @@ func init() {
 
 	rootCmd.Flags().StringVarP(&proxyIp, "proxy-ip","","","Proxy ip address to be used")
 	rootCmd.Flags().IntVarP(&proxyPort, "proxy-port","",3128,"Proxy port to be used")
+	rootCmd.Flags().BoolVarP(&noProxy, "no-proxy","",false,"If wanted to disbale default proxy(localhost:3128) configuration")
 
 	rootCmd.MarkFlagRequired("user")
 	rootCmd.MarkFlagRequired("keypath")
@@ -139,7 +147,7 @@ func start(uname, pKeyPath, sshTargetIP string, targetPort int) {
 			}
 		
 			var isProxyEnabled bool
-			if proxyIp != "" || proxyPort != 0 {
+			if (proxyIp != "" || proxyPort != 0) && !noProxy {
 				isProxyEnabled = true				
 			}
 			if isProxyEnabled {
@@ -196,6 +204,18 @@ func readConf() error {
 	return nil
 }
 
+func sumUploadStats(n int, a time.Time) {
+	d := time.Now().Sub(a)
+	totUploadBytes += int64(n)
+	totUploadDuration += int64(d)
+}
+
+func sumDownloadStats(n int, a time.Time) {
+	d := time.Now().Sub(a)
+	totDownloadBytes += int64(n)
+	totDownloadDuration += int64(d)
+}
+
 func proxy(tcpConn, targetConn net.Conn, waitChan chan int) {
 	BUFSIZE := 1024 * 5
 	go func() {
@@ -207,7 +227,9 @@ func proxy(tcpConn, targetConn net.Conn, waitChan chan int) {
 			if n != 0 {
 				fmt.Println("wrote to target conn")
 				// fmt.Println("tcpConn data", string(tcpConnBuf))
+				a := time.Now()
 				targetConn.Write(tcpConnBuf[:n])
+				sumUploadStats(n, a)
 			}
 			if err != nil {
 				if err == io.EOF {
@@ -231,8 +253,10 @@ func proxy(tcpConn, targetConn net.Conn, waitChan chan int) {
 			}()
 
 			// Reading from target
+			a := time.Now()
 			n, err := targetConn.Read(targetConnBuf)
 			fmt.Println("finishing timer")
+			sumDownloadStats(n, a)
 
 			// Clean up timer, in case succefully read from target in time
 			timer.Stop()
@@ -276,6 +300,8 @@ func timeout(timer *time.Timer, targetConn net.Conn, timeoutChan chan int) {
 		case a := <- timer.C:
 			err := targetConn.Close()
 			fmt.Println("ended timeout closing targetConn with err ", err, a)
+			fmt.Printf("upload speed n: %v, d: %v, %v bytes/sec\n", totUploadBytes, int64(totUploadDuration), int64(totUploadBytes)/(int64(totUploadDuration)/(10^9)))
+			fmt.Printf("download speed n: %v, d: %v, %v bytes/sec\n", totDownloadBytes, int64(totDownloadDuration), int64(totDownloadBytes)/(int64(totDownloadDuration)/(10^9)))
 			close(timeoutChan)
 		case <- timeoutChan:
 			fmt.Println("ended timeout casually")
